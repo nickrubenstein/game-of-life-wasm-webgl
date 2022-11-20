@@ -1,0 +1,35 @@
+[package]
+name = "wasm-webgl-game-of-life"
+version = "0.1.0"
+authors = ["Nick Rubenstein <nick@rubenstein.dev>"]
+edition = "2018"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+js-sys = "0.3.59"
+wasm-bindgen = "0.2.82"
+fixedbitset = "0.4.2"
+
+[dependencies.web-sys]
+version = "0.3.4"
+features = [
+  'Document',
+  'Element',
+  'DomRect',
+  'HtmlCanvasElement',
+  'HtmlDivElement',
+  'HtmlButtonElement',
+  'HtmlInputElement',
+  'WebGl2RenderingContext',
+  'WebGlProgram',
+  'WebGlShader',
+  'WebGlUniformLocation',
+  'Window',
+  'console',
+  'MouseEvent'
+]
+
+[profile.release]
+opt-level = "s"
