@@ -48,7 +48,42 @@ pub fn start() -> Result<(), JsValue> {
         closure.forget();
     }
 
-    // Mouse click handler on canvas
+    // Mouse mousedown handler on canvas
+    {
+        let closure: Closure<dyn Fn(_)> = {
+            let renderer = renderer.clone();
+            Closure::wrap(Box::new(move |event: web_sys::MouseEvent| {
+                let client_x = event.client_x();
+                let client_y = event.client_y();
+                renderer.borrow_mut().start_position(client_x, client_y);
+            }))
+        };
+        (canvas.as_ref() as &web_sys::EventTarget)
+            .add_event_listener_with_callback("mousedown", closure.as_ref().unchecked_ref())?;
+        closure.forget();
+    }
+
+    // Mouse move handler on canvas
+    {
+        let closure: Closure<dyn Fn(_)> = {
+            let renderer = renderer.clone();
+            Closure::wrap(Box::new(move |event: web_sys::MouseEvent| {
+                {
+                    if renderer.borrow().has_start_position() {
+                        let client_x = event.client_x();
+                        let client_y = event.client_y();
+                        renderer.borrow_mut().set_position(client_x, client_y); 
+                        renderer.borrow().draw();
+                    }
+                }
+            }))
+        };
+        (canvas.as_ref() as &web_sys::EventTarget)
+            .add_event_listener_with_callback("mousemove", closure.as_ref().unchecked_ref())?;
+        closure.forget();
+    }
+
+    // Mouse mouseup handler on canvas
     {
         let closure: Closure<dyn Fn(_)> = {
             let canvas = canvas.clone();
@@ -56,6 +91,9 @@ pub fn start() -> Result<(), JsValue> {
             let renderer = renderer.clone();
             Closure::wrap(Box::new(move |event: web_sys::MouseEvent| {
                 {
+                    let client_x = event.client_x();
+                    let client_y = event.client_y();
+                    renderer.borrow_mut().end_position(client_x, client_y); 
                     let mut universe = universe.borrow_mut();
                     let w = universe.width() as isize;
                     let h = universe.height() as isize;
@@ -67,8 +105,8 @@ pub fn start() -> Result<(), JsValue> {
                     let rect_small_side = bounding_rect.width().min(bounding_rect.height());
                     let scale_x = w as f64 / rect_small_side;
                     let scale_y = h as f64 / rect_small_side;
-                    let x = ((event.client_x() as f64 - bounding_rect.left() - viewport_offset_x) * scale_x) as isize;
-                    let y = ((event.client_y() as f64 - bounding_rect.top() - viewport_offset_y) * scale_y) as isize;
+                    let x = ((client_x as f64 - bounding_rect.left() - viewport_offset_x) * scale_x) as isize;
+                    let y = ((client_y as f64 - bounding_rect.top() - viewport_offset_y) * scale_y) as isize;
 
                     let row = in_bounds(y, h);
                     let col = in_bounds(x, w);
@@ -94,7 +132,7 @@ pub fn start() -> Result<(), JsValue> {
             }))
         };
         (canvas.as_ref() as &web_sys::EventTarget)
-            .add_event_listener_with_callback("click", closure.as_ref().unchecked_ref())?;
+            .add_event_listener_with_callback("mouseup", closure.as_ref().unchecked_ref())?;
         closure.forget();
     }
 
@@ -243,8 +281,3 @@ fn tpf_input() -> web_sys::HtmlInputElement {
     let btn = document().get_element_by_id("tpf-range").expect("document should have a tpf-range input");
     btn.dyn_into::<web_sys::HtmlInputElement>().expect("dyn_into for tpf-range input failed")
 }
-
-// fn tpf_label() -> web_sys::HtmlDivElement {
-//     let btn = document().get_element_by_id("tpf-label").expect("document should have a tpf-label div");
-//     btn.dyn_into::<web_sys::HtmlDivElement>().expect("dyn_into for tpf-label div failed")
-// }
