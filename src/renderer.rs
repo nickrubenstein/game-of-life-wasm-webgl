@@ -4,13 +4,16 @@ use std::rc::Rc;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 
-// use crate::utils;
+use crate::utils;
 use crate::universe::Universe;
 
 pub struct Renderer {
     canvas: web_sys::HtmlCanvasElement,
     ctx: web_sys::WebGl2RenderingContext,
     universe: Rc<RefCell<Universe>>,
+    view_scale: f32,
+    view_position: (i32, i32),
+    view_start_position: Option<(i32, i32)>,
     position_loc: u32,
     point_size_loc: u32,
     color_loc: web_sys::WebGlUniformLocation
@@ -67,10 +70,17 @@ impl Renderer {
         let point_size_loc = ctx.get_attrib_location(&program, "pointSize") as u32;
         let color_loc = ctx.get_uniform_location(&program, "color").unwrap();
 
+        let view_scale = 1.0;
+        let view_position = (0, 0);
+        let view_start_position = None;
+
         Ok(Renderer {
             canvas,
             universe,
-            ctx: ctx,
+            ctx,
+            view_scale,
+            view_position,
+            view_start_position,
             position_loc,
             point_size_loc,
             color_loc
@@ -136,8 +146,8 @@ impl Renderer {
         // log!("({}, {})", canvas.width(), canvas.height());
         let canvas_small_side = canvas_width.min(canvas_height);
 
-        let viewport_offset_x = (canvas_width - canvas_small_side) / 2;
-        let viewport_offset_y = (canvas_height - canvas_small_side) / 2;
+        let viewport_offset_x = (canvas_width - canvas_small_side) / 2 - self.view_position.0;
+        let viewport_offset_y = (canvas_height - canvas_small_side) / 2 + self.view_position.1;
         self.ctx.viewport(viewport_offset_x, viewport_offset_y, canvas_small_side, canvas_small_side);
 
         self.ctx.clear_color(CANVAS_COLOR[0], CANVAS_COLOR[1], CANVAS_COLOR[2], CANVAS_COLOR[3]);
@@ -145,6 +155,40 @@ impl Renderer {
 
         self.draw_universe(canvas_small_side as f32);
         self.draw_cells(canvas_small_side as f32);
+    }
+
+    pub fn reset_view(&mut self) {
+        self.view_scale = 1.0;
+        self.view_position = (0, 0);
+        self.view_start_position = None;
+    }
+
+    pub fn start_position(&mut self, x: i32, y: i32) {
+        self.view_start_position = Some((self.view_position.0 + x, self.view_position.1 + y));
+        // utils::log!("start ({},{})", x, y);
+    }
+
+    pub fn set_position(&mut self, x: i32, y: i32) {
+        if self.has_start_position() {
+            let start = self.view_start_position.unwrap();
+            self.view_position.0 = start.0 - x;
+            self.view_position.1 = start.1 - y;
+            // utils::log!("end   ({},{})", self.view_position.0, self.view_position.1);
+        }
+    }
+
+    pub fn end_position(&mut self, x: i32, y: i32) {
+        self.set_position(x, y);
+        self.view_start_position = None;
+    }
+
+    pub fn has_start_position(&self) -> bool {
+        self.view_start_position.is_some()
+    }
+
+    pub fn set_view_scale(&mut self, scale_delta: f32) {
+        utils::log!("scale {} to {}", self.view_scale, self.view_scale + scale_delta);
+        self.view_scale += scale_delta;
     }
 
     fn draw_universe(&self, canvas_small_side: f32) {
