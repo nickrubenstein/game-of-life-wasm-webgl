@@ -36,7 +36,7 @@ wasm-pack build
 npm run build
 ```
 
-### Test in Headless Browsers with `wasm-pack test`
+### Test in Headless Browsers
 
 ```
 wasm-pack test --headless --firefox

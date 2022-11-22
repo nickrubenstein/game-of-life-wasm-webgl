@@ -3,6 +3,9 @@ name = "wasm-webgl-game-of-life"
 version = "0.1.0"
 authors = ["Nick Rubenstein <nick@rubenstein.dev>"]
 edition = "2018"
+description = "Game of life implemented with rust wasm and webgl"
+repository = "https://github.com/nickrubenstein/game-of-life-wasm-webgl"
+license = "MIT"
 
 [lib]
 crate-type = ["cdylib", "rlib"]

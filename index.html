@@ -1,99 +1,108 @@
 <html>
-  <head>
-    <meta content="text/html;charset=utf-8" http-equiv="Content-Type"/>
-    <title>wasm-webgl game of life</title>
-    <style>
-        body {
-          position: absolute;
-          margin: 0px;
-          /* top: 0;
-          left: 0; */
-          width: 100%;
-          height: 100%;
-          display: flex;
-          flex-direction: column;
-          align-items: stretch;
-          justify-content: center;
-          overflow: hidden;
-          background-color: rgb(40, 40, 40);
-        }
-        canvas {
-            margin: 0px 2px 2px 2px;
-            flex: 1 1;
-        }
-        button {
-          height: 25px;
-          color: rgb(200, 200, 200);
-          background-color: rgb(51,51,51);
-          border: none;
-        }
-        button:hover {
-          cursor: pointer;
-          background-color: rgb(40, 40, 40);
-        }
-        input {
-          width: 60px;
-          height: 25px;
-          text-align: center;
-          border: none;
-          outline: none;
-          color: rgb(200, 200, 200);
-          background-color: rgb(51,51,51);
-        }
-        .flex-column {
-          flex-direction: column;
-        }
-        .flex-row, .flex-column {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-        .grouping {
-          display: flex;
-          flex: 0 0;
-          align-items: center;
-          height: 50px;
-          padding: 0px 5px;
-          margin: 0px 1px;
-          border-top-left-radius: 20px;
-          border-top-right-radius: 20px;
-          color: rgb(200, 200, 200);
-          background-color: rgb(51, 51, 51);
-        }
-        #play-pause {
-          width: 30px;
-        }
-        #fps-label { 
-          width: 60px;
-        }
-      </style>
-  </head>
-  <body>
-      <div id="settings" class="flex-row">
-        <div class="grouping flex-column">
-          <div id="universe-label">Universe</div>
-          <div class="flex-row">
-            <input type="number" id="row-input" watermark="rows" min="10" max="100000000" step="1" value="64">
-            <!-- <input type="number" id="col-input" watermark="columns" min="10" max="100000000" step="1" value="64"> -->
-            <button id="universe-apply">Apply</button>
-          </div>
-        </div>
-        <div class="grouping flex-column">
-          <div id="fps-label">FPS</div>
-          <div class="flex-row">
-            <button id="play-pause"></button>
-            <input type="range" id="fps-range" min="0" max="3" step="0.25" value="3">
-          </div>
-        </div>
-        <div class="grouping flex-column">
-          <div id="tpf-label">TPF</div>
-          <div class="flex-row">
-            <input type="number" id="tpf-range" min="1" max="1000" step="1" value="1">
-          </div>
-        </div>
+
+<head>
+  <meta content="text/html;charset=utf-8" http-equiv="Content-Type" />
+  <title>wasm-webgl game of life</title>
+  <link rel="icon" href="favicon.ico" />
+  <style>
+    body {
+      margin: 0px;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background-color: rgb(40, 40, 40);
+    }
+
+    canvas {
+      margin: 0px 2px 2px 2px;
+      flex: 1 1;
+    }
+
+    button {
+      height: 25px;
+      color: rgb(200, 200, 200);
+      background-color: rgb(51, 51, 51);
+      border: none;
+    }
+
+    button:hover {
+      cursor: pointer;
+      background-color: rgb(40, 40, 40);
+    }
+
+    input {
+      width: 60px;
+      height: 25px;
+      text-align: center;
+      border: none;
+      outline: none;
+      color: rgb(200, 200, 200);
+      background-color: rgb(51, 51, 51);
+    }
+
+    .flex-column {
+      flex-direction: column;
+    }
+
+    .flex-row,
+    .flex-column {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .grouping {
+      display: flex;
+      flex: 0 0;
+      align-items: center;
+      height: 50px;
+      padding: 0px 5px;
+      margin: 0px 1px;
+      border-top-left-radius: 20px;
+      border-top-right-radius: 20px;
+      color: rgb(200, 200, 200);
+      background-color: rgb(51, 51, 51);
+    }
+
+    #play-pause {
+      width: 30px;
+    }
+
+    #fps-label {
+      width: 60px;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="settings" class="flex-row">
+    <div class="grouping flex-column">
+      <div id="universe-label" tooltip="Cell dimensions">Universe</div>
+      <div class="flex-row">
+        <input type="number" id="row-input" watermark="rows" min="10" max="100000000" step="1" value="100">
+        <!-- <input type="number" id="col-input" watermark="columns" min="10" max="100000000" step="1" value="64"> -->
+        <button id="universe-apply">Apply</button>
       </div>
-      <canvas id="canvas"></canvas>
-      <noscript>This page contains webassembly and javascript content, please enable javascript in your browser.</noscript>
-      <script src="./bootstrap.js"></script>
-  </body>
+    </div>
+    <div class="grouping flex-column">
+      <div id="fps-label" tooltip="Frames per second">FPS</div>
+      <div class="flex-row">
+        <button id="play-pause"></button>
+        <input type="range" id="fps-range" min="0" max="3" step="0.25" value="3">
+      </div>
+    </div>
+    <div class="grouping flex-column">
+      <div id="tpf-label" tooltip="Ticks per frame">TPF</div>
+      <div class="flex-row">
+        <input type="number" id="tpf-range" min="1" max="1000" step="1" value="1">
+      </div>
+    </div>
+  </div>
+  <canvas id="canvas"></canvas>
+  <noscript>This page contains webassembly and javascript content, please enable javascript in your browser.</noscript>
+  <script src="./bootstrap.js"></script>
+</body>
+
 </html>

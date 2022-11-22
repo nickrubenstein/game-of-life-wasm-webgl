@@ -15,7 +15,8 @@ module.exports = env => {
         plugins: [
             new CopyWebpackPlugin({
                 patterns: [
-                    'index.html'
+                    'index.html',
+                    'favicon.ico'
                 ]
             })
         ],
