@@ -4,7 +4,7 @@ use std::rc::Rc;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 
-use crate::utils;
+// use crate::utils;
 use crate::universe::Universe;
 
 pub struct Renderer {
@@ -166,7 +166,7 @@ impl Renderer {
 
     pub fn start_position(&mut self, x: i32, y: i32) {
         self.view_start_position = Some((self.view_position.0 + x, self.view_position.1 + y));
-        // utils::log!("start ({},{})", x, y);
+        // utils::log!("start ({},{})", self.view_position.0, self.view_position.1);
     }
 
     pub fn set_position(&mut self, x: i32, y: i32) {
@@ -174,13 +174,14 @@ impl Renderer {
             let start = self.view_start_position.unwrap();
             self.view_position.0 = start.0 - x;
             self.view_position.1 = start.1 - y;
-            // utils::log!("end   ({},{})", self.view_position.0, self.view_position.1);
+            // utils::log!("set   ({},{})", self.view_position.0, self.view_position.1);
         }
     }
 
     pub fn end_position(&mut self, x: i32, y: i32) {
         self.set_position(x, y);
         self.view_start_position = None;
+        // utils::log!("end   ({},{})", self.view_position.0, self.view_position.1);
     }
 
     pub fn has_start_position(&self) -> bool {
@@ -192,7 +193,7 @@ impl Renderer {
     }
 
     pub fn set_view_scale_delta(&mut self, scale_delta: f64) {
-        self.view_scale = f64::max(self.view_scale + scale_delta, 0.1);
+        self.view_scale = f64::max(self.view_scale * scale_delta, 0.1);
     }
 
     pub fn get_view_position(&self) -> (i32, i32) {

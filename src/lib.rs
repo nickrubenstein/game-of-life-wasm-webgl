@@ -134,11 +134,11 @@ pub fn start() -> Result<(), JsValue> {
                 {
                     let client_x = event.client_x();
                     let client_y = event.client_y();
-                    renderer.borrow_mut().end_position(client_x, client_y); 
+                    renderer.borrow_mut().end_position(client_x, client_y);
+
                     let mut universe = universe.borrow_mut();
                     let w = universe.width() as isize;
                     let h = universe.height() as isize;
-
                     let view_offset = renderer.borrow().get_view_position();
                     let view_scale = renderer.borrow().get_view_scale();
                     let bounding_rect = (canvas.as_ref() as &web_sys::Element).get_bounding_client_rect();
@@ -182,16 +182,24 @@ pub fn start() -> Result<(), JsValue> {
     // Mouse scroll handler on canvas
     {
         let closure: Closure<dyn Fn(_)> = {
+            let canvas = canvas.clone();
             let renderer = renderer.clone();
             Closure::wrap(Box::new(move |event: web_sys::WheelEvent| {
+                let old_scale = renderer.borrow().get_view_scale();
                 if event.delta_y() >= 0.0 {
-                    renderer.borrow_mut().set_view_scale_delta(0.1);
+                    renderer.borrow_mut().set_view_scale_delta(1.1);
                 }
                 else {
-                    renderer.borrow_mut().set_view_scale_delta(-0.1);
+                    renderer.borrow_mut().set_view_scale_delta(0.9);
                 }
                 let scale = renderer.borrow().get_view_scale();
                 view_scale_input().set_value(&format!("{:.0}", scale * 100.0));
+                let client_x = event.client_x() as f64;
+                let client_y = event.client_y() as f64;
+                let direction_x = (canvas.width() as f64 / 2.0) - client_x;
+                let direction_y = (canvas.height() as f64 / 2.0) - client_y;
+                renderer.borrow_mut().start_position((direction_x * old_scale) as i32, (direction_y * old_scale) as i32);
+                renderer.borrow_mut().end_position((direction_x * scale) as i32, (direction_y * scale) as i32); 
                 renderer.borrow().draw();
             }))
         };
