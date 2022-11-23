@@ -31,7 +31,8 @@ features = [
   'WebGlUniformLocation',
   'Window',
   'console',
-  'MouseEvent'
+  'MouseEvent',
+  'WheelEvent'
 ]
 
 [profile.release]

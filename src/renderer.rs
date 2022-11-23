@@ -11,7 +11,7 @@ pub struct Renderer {
     canvas: web_sys::HtmlCanvasElement,
     ctx: web_sys::WebGl2RenderingContext,
     universe: Rc<RefCell<Universe>>,
-    view_scale: f32,
+    view_scale: f64,
     view_position: (i32, i32),
     view_start_position: Option<(i32, i32)>,
     position_loc: u32,
@@ -145,16 +145,17 @@ impl Renderer {
         self.canvas.set_height(canvas_height as u32);
         // log!("({}, {})", canvas.width(), canvas.height());
         let canvas_small_side = canvas_width.min(canvas_height);
+        let view_scale = ((canvas_small_side as f64) * self.view_scale) as i32;
 
-        let viewport_offset_x = (canvas_width - canvas_small_side) / 2 - self.view_position.0;
-        let viewport_offset_y = (canvas_height - canvas_small_side) / 2 + self.view_position.1;
-        self.ctx.viewport(viewport_offset_x, viewport_offset_y, canvas_small_side, canvas_small_side);
+        let viewport_offset_x = (canvas_width - view_scale) / 2 - self.view_position.0;
+        let viewport_offset_y = (canvas_height - view_scale) / 2 + self.view_position.1;
+        self.ctx.viewport(viewport_offset_x, viewport_offset_y, view_scale, view_scale);
 
         self.ctx.clear_color(CANVAS_COLOR[0], CANVAS_COLOR[1], CANVAS_COLOR[2], CANVAS_COLOR[3]);
         self.ctx.clear(web_sys::WebGl2RenderingContext::COLOR_BUFFER_BIT);
 
-        self.draw_universe(canvas_small_side as f32);
-        self.draw_cells(canvas_small_side as f32);
+        self.draw_universe(view_scale as f32);
+        self.draw_cells(view_scale as f32);
     }
 
     pub fn reset_view(&mut self) {
@@ -186,23 +187,34 @@ impl Renderer {
         self.view_start_position.is_some()
     }
 
-    pub fn set_view_scale(&mut self, scale_delta: f32) {
-        utils::log!("scale {} to {}", self.view_scale, self.view_scale + scale_delta);
-        self.view_scale += scale_delta;
+    pub fn set_view_scale(&mut self, scale: f64) {
+        self.view_scale = f64::max(scale, 0.1);
     }
 
-    fn draw_universe(&self, canvas_small_side: f32) {
+    pub fn set_view_scale_delta(&mut self, scale_delta: f64) {
+        self.view_scale = f64::max(self.view_scale + scale_delta, 0.1);
+    }
+
+    pub fn get_view_position(&self) -> (i32, i32) {
+        self.view_position
+    }
+
+    pub fn get_view_scale(&self) -> f64 {
+        self.view_scale
+    }
+
+    fn draw_universe(&self, size: f32) {
         self.ctx.uniform4f(Some(&self.color_loc), UNIVERSE_COLOR[0], UNIVERSE_COLOR[1], UNIVERSE_COLOR[2], UNIVERSE_COLOR[3]);
-        self.draw_point(0.0, 0.0, canvas_small_side);
+        self.draw_point(0.0, 0.0, size);
     }
 
-    fn draw_cells(&self, canvas_small_side: f32) {
+    fn draw_cells(&self, size: f32) {
         let universe = self.universe.borrow();
         let universe_width = universe.width() as f32;
         let universe_height = universe.height() as f32;
         let universe_width_offset = -1.0 + (1.0 / universe_width);
         let universe_height_offset = -1.0 + (1.0 / universe_height);
-        let scale = canvas_small_side / (universe_width.min(universe_height) + CELL_SIZE);
+        let cell_size = size / (universe_width.min(universe_height) + CELL_SIZE);
         self.ctx.uniform4f(Some(&self.color_loc), ALIVE_COLOR[0], ALIVE_COLOR[1], ALIVE_COLOR[2], ALIVE_COLOR[3]);
         for row in 0..universe.width() {
             let row_u = row as f32 / universe_width; 
@@ -216,15 +228,15 @@ impl Renderer {
                 self.draw_point(
                     col_n,
                     -row_n, // invert so that row 0 is at the top of the canvas
-                    scale
+                    cell_size
                 );
             }
         }
     }
 
-    fn draw_point(&self, x: f32, y: f32, scale: f32) {
+    fn draw_point(&self, x: f32, y: f32, size: f32) {
         self.ctx.vertex_attrib2f(self.position_loc, x, y);
-        self.ctx.vertex_attrib1f(self.point_size_loc, scale);
+        self.ctx.vertex_attrib1f(self.point_size_loc, size);
         self.ctx.draw_arrays(web_sys::WebGl2RenderingContext::POINTS, 0, 1);
     }
 }

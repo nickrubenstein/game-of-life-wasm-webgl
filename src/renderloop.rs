@@ -9,7 +9,7 @@ use crate::universe::Universe;
 // use crate::utils;
 
 
-const FRAME_DURATION_MAX: usize = 100;
+const FRAME_DURATION_MAX: usize = 10;
 
 pub struct RenderLoop {
     window: web_sys::Window,

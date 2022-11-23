@@ -48,6 +48,47 @@ pub fn start() -> Result<(), JsValue> {
         closure.forget();
     }
 
+    // view reset apply button listener
+    { 
+        let view_apply_btn = view_apply_btn();
+        let closure: Closure<dyn Fn() -> _> = {
+            let renderer = renderer.clone();
+            Closure::wrap(Box::new(move || -> Result<(), JsValue> {
+                {
+                    renderer.borrow_mut().reset_view();
+                    view_scale_input().set_value("100");
+                    renderer.borrow().draw();
+                }
+                Ok(())
+            }))
+        };
+        view_apply_btn.add_event_listener_with_callback("click", closure.as_ref().unchecked_ref())?;
+        closure.forget();
+    }
+
+    // view scale input change listener
+    { 
+        let vsi = view_scale_input();
+        let closure: Closure<dyn Fn() -> _> = {
+            let renderer = renderer.clone();
+            Closure::wrap(Box::new(move || -> Result<(), JsValue> {
+                {
+                    let scale = view_scale_input().value().parse::<f64>();
+                    if let Ok(s) = scale {
+                        renderer.borrow_mut().set_view_scale(s / 100.0);
+                        renderer.borrow().draw();
+                    }
+                    else {
+                        utils::log!("Could not parse zoom value");
+                    }
+                }
+                Ok(())
+            }))
+        };
+        vsi.add_event_listener_with_callback("change", closure.as_ref().unchecked_ref())?;
+        closure.forget();
+    }
+
     // Mouse mousedown handler on canvas
     {
         let closure: Closure<dyn Fn(_)> = {
@@ -98,13 +139,15 @@ pub fn start() -> Result<(), JsValue> {
                     let w = universe.width() as isize;
                     let h = universe.height() as isize;
 
+                    let view_offset = renderer.borrow().get_view_position();
+                    let view_scale = renderer.borrow().get_view_scale();
                     let bounding_rect = (canvas.as_ref() as &web_sys::Element).get_bounding_client_rect();
-                    let canvas_small_side = canvas.width().min(canvas.height()) as f64;
-                    let viewport_offset_x = (canvas.width() as f64 - canvas_small_side) / 2.0;
-                    let viewport_offset_y = (canvas.height() as f64 - canvas_small_side) / 2.0;
+                    let canvas_small_side = canvas.width().min(canvas.height()) as f64 * view_scale;
+                    let viewport_offset_x = (canvas.width() as f64 - canvas_small_side) / 2.0 - view_offset.0 as f64;
+                    let viewport_offset_y = (canvas.height() as f64 - canvas_small_side) / 2.0 - view_offset.1 as f64;
                     let rect_small_side = bounding_rect.width().min(bounding_rect.height());
-                    let scale_x = w as f64 / rect_small_side;
-                    let scale_y = h as f64 / rect_small_side;
+                    let scale_x = w as f64 / rect_small_side / view_scale;
+                    let scale_y = h as f64 / rect_small_side / view_scale;
                     let x = ((client_x as f64 - bounding_rect.left() - viewport_offset_x) * scale_x) as isize;
                     let y = ((client_y as f64 - bounding_rect.top() - viewport_offset_y) * scale_y) as isize;
 
@@ -133,6 +176,27 @@ pub fn start() -> Result<(), JsValue> {
         };
         (canvas.as_ref() as &web_sys::EventTarget)
             .add_event_listener_with_callback("mouseup", closure.as_ref().unchecked_ref())?;
+        closure.forget();
+    }
+
+    // Mouse scroll handler on canvas
+    {
+        let closure: Closure<dyn Fn(_)> = {
+            let renderer = renderer.clone();
+            Closure::wrap(Box::new(move |event: web_sys::WheelEvent| {
+                if event.delta_y() >= 0.0 {
+                    renderer.borrow_mut().set_view_scale_delta(0.1);
+                }
+                else {
+                    renderer.borrow_mut().set_view_scale_delta(-0.1);
+                }
+                let scale = renderer.borrow().get_view_scale();
+                view_scale_input().set_value(&format!("{:.0}", scale * 100.0));
+                renderer.borrow().draw();
+            }))
+        };
+        (canvas.as_ref() as &web_sys::EventTarget)
+            .add_event_listener_with_callback("wheel", closure.as_ref().unchecked_ref())?;
         closure.forget();
     }
 
@@ -260,6 +324,16 @@ fn row_input() -> web_sys::HtmlInputElement {
 fn universe_apply_btn() -> web_sys::HtmlButtonElement {
     let btn = document().get_element_by_id("universe-apply").expect("document should have a universe-apply button");
     btn.dyn_into::<web_sys::HtmlButtonElement>().expect("dyn_into for universe-apply button failed")
+}
+
+fn view_scale_input() -> web_sys::HtmlInputElement {
+    let btn = document().get_element_by_id("scale-input").expect("document should have a scale input");
+    btn.dyn_into::<web_sys::HtmlInputElement>().expect("dyn_into for scale input failed")
+}
+
+fn view_apply_btn() -> web_sys::HtmlButtonElement {
+    let btn = document().get_element_by_id("view-apply").expect("document should have a view-apply button");
+    btn.dyn_into::<web_sys::HtmlButtonElement>().expect("dyn_into for view-apply button failed")
 }
 
 fn play_pause_btn() -> web_sys::HtmlButtonElement {
