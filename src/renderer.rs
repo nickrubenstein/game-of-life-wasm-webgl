@@ -1,9 +1,9 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use js_sys::WebAssembly;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-
 // use crate::utils;
 use crate::universe::Universe;
 
@@ -69,6 +69,8 @@ impl Renderer {
         let position_loc = ctx.get_attrib_location(&program, "position") as u32;
         let point_size_loc = ctx.get_attrib_location(&program, "pointSize") as u32;
         let color_loc = ctx.get_uniform_location(&program, "color").unwrap();
+
+        Renderer::init_background(&ctx).unwrap();
 
         let view_scale = 1.0;
         let view_position = (0, 0);
@@ -137,6 +139,32 @@ impl Renderer {
         }
     }
 
+    fn init_background(context: &web_sys::WebGl2RenderingContext) -> Result<web_sys::WebGlVertexArrayObject, JsValue> {
+        let vertices: [f32; 12] = [
+            -1.0, 1.0, 0.0, 
+            -1.0, -1.0, 0.0, 
+            1.0, 1.0, 0.0,
+            1.0, -1.0, 0.0
+        ];
+        let vertex_array = {
+            let memory_buffer = wasm_bindgen::memory()
+                .dyn_into::<WebAssembly::Memory>()?
+                .buffer();
+            let vertices_location = vertices.as_ptr() as u32 / 4;
+            js_sys::Float32Array::new(&memory_buffer)
+                .subarray(vertices_location, vertices_location + vertices.len() as u32)
+        };
+        let vertex_buffer: web_sys::WebGlBuffer = match context.create_buffer() {
+            Some(buffer) => buffer,
+            None => return Err(JsValue::from_str("Failed to create the buffer object"))
+        };
+        context.bind_buffer(web_sys::WebGl2RenderingContext::ARRAY_BUFFER, Some(&vertex_buffer));
+        context.buffer_data_with_array_buffer_view(web_sys::WebGl2RenderingContext::ARRAY_BUFFER, &vertex_array, web_sys::WebGl2RenderingContext::STATIC_DRAW);
+        let vao = context.create_vertex_array().ok_or("Could not create vertex array object")?;
+        context.bind_vertex_array(Some(&vao));
+        Ok(vao)
+    }
+
     pub fn draw(&self) {
         // let _timer = utils::Timer::new("Renderer::draw");
         let canvas_width = self.canvas.client_width() as i32;
@@ -154,7 +182,7 @@ impl Renderer {
         self.ctx.clear_color(CANVAS_COLOR[0], CANVAS_COLOR[1], CANVAS_COLOR[2], CANVAS_COLOR[3]);
         self.ctx.clear(web_sys::WebGl2RenderingContext::COLOR_BUFFER_BIT);
 
-        self.draw_universe(view_scale as f32);
+        self.draw_universe();
         self.draw_cells(view_scale as f32);
     }
 
@@ -204,9 +232,15 @@ impl Renderer {
         self.view_scale
     }
 
-    fn draw_universe(&self, size: f32) {
+    fn draw_universe(&self) {
+        self.ctx.enable_vertex_attrib_array(self.position_loc as u32);
+        self.ctx.vertex_attrib_pointer_with_i32(self.position_loc as u32, 3, web_sys::WebGl2RenderingContext::FLOAT, false, 0, 0);
+
         self.ctx.uniform4f(Some(&self.color_loc), UNIVERSE_COLOR[0], UNIVERSE_COLOR[1], UNIVERSE_COLOR[2], UNIVERSE_COLOR[3]);
-        self.draw_point(0.0, 0.0, size);
+        self.ctx.vertex_attrib2f(self.position_loc, 0.0, 0.0);
+        self.ctx.draw_arrays(web_sys::WebGl2RenderingContext::TRIANGLE_STRIP, 0, 4);
+
+        self.ctx.disable_vertex_attrib_array(self.position_loc as u32);
     }
 
     fn draw_cells(&self, size: f32) {
@@ -216,6 +250,7 @@ impl Renderer {
         let universe_width_offset = -1.0 + (1.0 / universe_width);
         let universe_height_offset = -1.0 + (1.0 / universe_height);
         let cell_size = size / (universe_width.min(universe_height) + CELL_SIZE);
+        self.ctx.vertex_attrib1f(self.point_size_loc, cell_size);
         self.ctx.uniform4f(Some(&self.color_loc), ALIVE_COLOR[0], ALIVE_COLOR[1], ALIVE_COLOR[2], ALIVE_COLOR[3]);
         for row in 0..universe.width() {
             let row_u = row as f32 / universe_width; 
@@ -228,16 +263,14 @@ impl Renderer {
                 let col_n = col_u * 2.0 + universe_height_offset;
                 self.draw_point(
                     col_n,
-                    -row_n, // invert so that row 0 is at the top of the canvas
-                    cell_size
+                    -row_n // invert so that row 0 is at the top of the canvas
                 );
             }
         }
     }
 
-    fn draw_point(&self, x: f32, y: f32, size: f32) {
+    fn draw_point(&self, x: f32, y: f32) {
         self.ctx.vertex_attrib2f(self.position_loc, x, y);
-        self.ctx.vertex_attrib1f(self.point_size_loc, size);
         self.ctx.draw_arrays(web_sys::WebGl2RenderingContext::POINTS, 0, 1);
     }
 }

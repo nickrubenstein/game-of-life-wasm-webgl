@@ -289,7 +289,7 @@ pub fn start() -> Result<(), JsValue> {
         closure.forget();
     }
 
-    utils::log!("end of lib start");
+    // utils::log!("end of lib start");
     render_loop.borrow_mut().play()?;
     Ok(())
 }
