@@ -14,15 +14,21 @@ pub struct Renderer {
     view_scale: f64,
     view_position: (i32, i32),
     view_start_position: Option<(i32, i32)>,
-    position_loc: u32,
-    point_size_loc: u32,
-    color_loc: web_sys::WebGlUniformLocation
+    cell_program: web_sys::WebGlProgram,
+    bg_program: web_sys::WebGlProgram,
+    cell_position_loc: u32,
+    bg_position_loc: u32,
+    point_size_loc: web_sys::WebGlUniformLocation,
+    universe_width_loc: web_sys::WebGlUniformLocation,
+    universe_height_loc: web_sys::WebGlUniformLocation,
+    universe_width_offset_loc: web_sys::WebGlUniformLocation,
+    universe_height_offset_loc: web_sys::WebGlUniformLocation
 }
 
 const CELL_SIZE: f32 = 10.0;
 const CANVAS_COLOR: [f32; 4] = [0.2, 0.2, 0.2, 1.0];
-const UNIVERSE_COLOR: [f32; 4] = [0.3, 0.3, 0.3, 1.0];
-const ALIVE_COLOR: [f32; 4] = [0.8, 0.8, 0.8, 1.0];
+// const UNIVERSE_COLOR: [f32; 4] = [0.3, 0.3, 0.3, 1.0];
+// const ALIVE_COLOR: [f32; 4] = [0.8, 0.8, 0.8, 1.0];
 
 impl Renderer {
     pub fn new(
@@ -34,42 +40,80 @@ impl Renderer {
             .expect("canvas should have a webgl2")
             .dyn_into::<web_sys::WebGl2RenderingContext>()?;
 
-        let vert_shader = Renderer::compile_shader(
+        let vert_cell_shader = Renderer::compile_shader(
             &ctx,
             web_sys::WebGl2RenderingContext::VERTEX_SHADER,
             r##"#version 300 es
     
-            in vec4 position;
-            in float pointSize;
+            in vec2 position;
+            uniform float universeWidth;
+            uniform float universeHeight;
+            uniform float universeWidthOffset;
+            uniform float universeHeightOffset;
+            uniform float pointSize;
 
             void main() {
-                gl_Position = position;
+
+                float x = 2.0 * ((position[0] / universeWidth) - 0.5) + universeWidthOffset;
+                float y = 2.0 * ((position[1] / universeHeight) - 0.5) + universeHeightOffset;
+
+                gl_Position = vec4(y, -x, 0.0, 1.0);
                 gl_PointSize = pointSize;
             }
             "##,
-        ).expect("failed to compile vert shader");
+        ).expect("failed to compile vert cell shader");
 
-        let frag_shader = Renderer::compile_shader(
+        let vert_bg_shader = Renderer::compile_shader(
+            &ctx,
+            web_sys::WebGl2RenderingContext::VERTEX_SHADER,
+            r##"#version 300 es
+
+            in vec2 position;
+
+            void main() {
+                gl_Position = vec4(position, 0.0, 1.0);
+            }
+            "##,
+        ).expect("failed to compile vert bg shader");
+
+        let frag_cell_shader = Renderer::compile_shader(
             &ctx,
             web_sys::WebGl2RenderingContext::FRAGMENT_SHADER,
             r##"#version 300 es
         
-            precision highp float;
-            uniform vec4 color;
+            precision lowp float;
             out vec4 outColor;
             void main() {
-                outColor = color;
+                outColor = vec4(0.8, 0.8, 0.8, 1.0);
+            }
+            "##,
+        ).expect("falied to compile frag shader");
+
+        let frag_bg_shader = Renderer::compile_shader(
+            &ctx,
+            web_sys::WebGl2RenderingContext::FRAGMENT_SHADER,
+            r##"#version 300 es
+        
+            precision lowp float;
+            out vec4 outColor;
+            void main() {
+                outColor = vec4(0.3, 0.3, 0.3, 1.0);
             }
             "##,
         ).expect("falied to compile frag shader");
     
-        let program = Renderer::link_program(&ctx, &vert_shader, &frag_shader).expect("Couldnt link shaders to program");
-        ctx.use_program(Some(&program));
-    
-        let position_loc = ctx.get_attrib_location(&program, "position") as u32;
-        let point_size_loc = ctx.get_attrib_location(&program, "pointSize") as u32;
-        let color_loc = ctx.get_uniform_location(&program, "color").unwrap();
+        let cell_program = Renderer::link_program(&ctx, &vert_cell_shader, &frag_cell_shader).expect("Couldnt link shaders to cell_program");
+        let cell_position_loc = ctx.get_attrib_location(&cell_program, "position") as u32;
+        let point_size_loc = ctx.get_uniform_location(&cell_program, "pointSize").unwrap();
+        let universe_width_loc = ctx.get_uniform_location(&cell_program, "universeWidth").unwrap();
+        let universe_height_loc = ctx.get_uniform_location(&cell_program, "universeHeight").unwrap();
+        let universe_width_offset_loc = ctx.get_uniform_location(&cell_program, "universeWidthOffset").unwrap();
+        let universe_height_offset_loc = ctx.get_uniform_location(&cell_program, "universeHeightOffset").unwrap();
 
+        let bg_program = Renderer::link_program(&ctx, &vert_bg_shader, &frag_bg_shader).expect("Couldnt link shaders to bg_program");
+        let bg_position_loc = ctx.get_attrib_location(&bg_program, "position") as u32;
+
+        ctx.use_program(Some(&bg_program));
         Renderer::init_background(&ctx).unwrap();
 
         let view_scale = 1.0;
@@ -83,9 +127,15 @@ impl Renderer {
             view_scale,
             view_position,
             view_start_position,
-            position_loc,
+            cell_program,
+            bg_program,
+            cell_position_loc,
+            bg_position_loc,
             point_size_loc,
-            color_loc
+            universe_width_loc,
+            universe_height_loc,
+            universe_width_offset_loc,
+            universe_height_offset_loc
         })
     }
 
@@ -139,12 +189,12 @@ impl Renderer {
         }
     }
 
-    fn init_background(context: &web_sys::WebGl2RenderingContext) -> Result<web_sys::WebGlVertexArrayObject, JsValue> {
-        let vertices: [f32; 12] = [
-            -1.0, 1.0, 0.0, 
-            -1.0, -1.0, 0.0, 
-            1.0, 1.0, 0.0,
-            1.0, -1.0, 0.0
+    fn init_background(context: &web_sys::WebGl2RenderingContext) -> Result<(), JsValue> {
+        let vertices: [f32; 8] = [
+            -1.0, 1.0, 
+            -1.0, -1.0, 
+            1.0, 1.0,
+            1.0, -1.0
         ];
         let vertex_array = {
             let memory_buffer = wasm_bindgen::memory()
@@ -160,9 +210,7 @@ impl Renderer {
         };
         context.bind_buffer(web_sys::WebGl2RenderingContext::ARRAY_BUFFER, Some(&vertex_buffer));
         context.buffer_data_with_array_buffer_view(web_sys::WebGl2RenderingContext::ARRAY_BUFFER, &vertex_array, web_sys::WebGl2RenderingContext::STATIC_DRAW);
-        let vao = context.create_vertex_array().ok_or("Could not create vertex array object")?;
-        context.bind_vertex_array(Some(&vao));
-        Ok(vao)
+        Ok(())
     }
 
     pub fn draw(&self) {
@@ -182,7 +230,7 @@ impl Renderer {
         self.ctx.clear_color(CANVAS_COLOR[0], CANVAS_COLOR[1], CANVAS_COLOR[2], CANVAS_COLOR[3]);
         self.ctx.clear(web_sys::WebGl2RenderingContext::COLOR_BUFFER_BIT);
 
-        self.draw_universe();
+        self.draw_background();
         self.draw_cells(view_scale as f32);
     }
 
@@ -232,45 +280,31 @@ impl Renderer {
         self.view_scale
     }
 
-    fn draw_universe(&self) {
-        self.ctx.enable_vertex_attrib_array(self.position_loc as u32);
-        self.ctx.vertex_attrib_pointer_with_i32(self.position_loc as u32, 3, web_sys::WebGl2RenderingContext::FLOAT, false, 0, 0);
+    fn draw_background(&self) {
+        self.ctx.use_program(Some(&self.bg_program));
+        self.ctx.enable_vertex_attrib_array(self.bg_position_loc);
+        self.ctx.vertex_attrib_pointer_with_i32(self.bg_position_loc, 2, web_sys::WebGl2RenderingContext::FLOAT, false, 0, 0);
 
-        self.ctx.uniform4f(Some(&self.color_loc), UNIVERSE_COLOR[0], UNIVERSE_COLOR[1], UNIVERSE_COLOR[2], UNIVERSE_COLOR[3]);
-        self.ctx.vertex_attrib2f(self.position_loc, 0.0, 0.0);
         self.ctx.draw_arrays(web_sys::WebGl2RenderingContext::TRIANGLE_STRIP, 0, 4);
 
-        self.ctx.disable_vertex_attrib_array(self.position_loc as u32);
+        self.ctx.disable_vertex_attrib_array(self.bg_position_loc);
     }
 
     fn draw_cells(&self, size: f32) {
+        self.ctx.use_program(Some(&self.cell_program));
         let universe = self.universe.borrow();
         let universe_width = universe.width() as f32;
         let universe_height = universe.height() as f32;
-        let universe_width_offset = -1.0 + (1.0 / universe_width);
-        let universe_height_offset = -1.0 + (1.0 / universe_height);
         let cell_size = size / (universe_width.min(universe_height) + CELL_SIZE);
-        self.ctx.vertex_attrib1f(self.point_size_loc, cell_size);
-        self.ctx.uniform4f(Some(&self.color_loc), ALIVE_COLOR[0], ALIVE_COLOR[1], ALIVE_COLOR[2], ALIVE_COLOR[3]);
-        for row in 0..universe.width() {
-            let row_u = row as f32 / universe_width; 
-            let row_n = row_u * 2.0 + universe_width_offset;
-            for col in 0..universe.height() {
-                if !universe.get_cell(row, col) {
-                    continue;
-                }
-                let col_u = col as f32 / universe_height; 
-                let col_n = col_u * 2.0 + universe_height_offset;
-                self.draw_point(
-                    col_n,
-                    -row_n // invert so that row 0 is at the top of the canvas
-                );
-            }
+        self.ctx.uniform1f(Some(&self.point_size_loc), cell_size);
+        self.ctx.uniform1f(Some(&self.universe_width_loc), universe_width);
+        self.ctx.uniform1f(Some(&self.universe_height_loc), universe_height);
+        self.ctx.uniform1f(Some(&self.universe_width_offset_loc),  1.0 / universe_width);
+        self.ctx.uniform1f(Some(&self.universe_height_offset_loc), 1.0 / universe_height);
+        let live_cells = universe.get_live_cells();
+        for (row, col) in live_cells {
+            self.ctx.vertex_attrib2f(self.cell_position_loc, *row, *col);
+            self.ctx.draw_arrays(web_sys::WebGl2RenderingContext::POINTS, 0, 1);
         }
-    }
-
-    fn draw_point(&self, x: f32, y: f32) {
-        self.ctx.vertex_attrib2f(self.position_loc, x, y);
-        self.ctx.draw_arrays(web_sys::WebGl2RenderingContext::POINTS, 0, 1);
     }
 }

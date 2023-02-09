@@ -8,7 +8,8 @@ pub struct Universe {
     width: usize,
     height: usize,
     cells: FixedBitSet,
-    old_cells: FixedBitSet
+    old_cells: FixedBitSet,
+    live_cells: Vec<(f32,f32)>
 }
 
 impl Universe {
@@ -19,7 +20,8 @@ impl Universe {
             width,
             height,
             cells: FixedBitSet::with_capacity(size),
-            old_cells: FixedBitSet::with_capacity(size)
+            old_cells: FixedBitSet::with_capacity(size),
+            live_cells: Vec::new()
         };
         universe.add_glider((width * width / 4) + (height / 4));
         universe
@@ -35,29 +37,31 @@ impl Universe {
 
     pub fn tick(&mut self) {
         // let _timer = utils::Timer::new("Universe::tick");
+        self.live_cells.clear();
         self.old_cells.clone_from(&self.cells);
         for row in 0..self.height {
             for col in 0..self.width {
                 let idx = self.get_index(row, col);
                 let cell = self.old_cells[idx];
                 let live_neighbors = self.live_neighbor_count(row, col);
-                self.cells.set(idx, match (cell, live_neighbors) {
+                let new_cell = match (cell, live_neighbors) {
                     (true, x) if x < 2 => false,
                     (true, 2) | (true, 3) => true,
                     (true, x) if x > 3 => false,
                     (false, 3) => true,
                     (otherwise, _) => otherwise
-                });
+                };
+                if new_cell {
+                    self.live_cells.push((row as f32, col as f32));
+                }
+                self.cells.set(idx, new_cell);
             }
         }
     }
 
-    /// Gets the value of a single cell in the universe.
-    /// 
-    /// true = alive, false = dead
-    pub fn get_cell(&self, row: usize, col: usize) -> bool {
-        let idx = self.get_index(row, col);
-        self.cells[idx]
+    /// Gets an array with row and column values for every live cell in the universe.
+    pub fn get_live_cells(&self) -> &[(f32,f32)] {
+        &self.live_cells
     }
 
     /// Toggle the value of a single cell in the universe between alive and dead.
@@ -65,6 +69,16 @@ impl Universe {
         let idx = self.get_index(row, col);
         utils::log!("row = {}, col = {}, idx = {}, cap = {}", row, col, idx, self.cells.len());
         self.cells.toggle(idx);
+        self.refresh_live_cell_list();
+    }
+
+    /// Toggle the value of many cells in the universe between alive and dead.
+    pub fn toggle_cells(&mut self, cells: &[(usize, usize)]) {
+        for (row, col) in cells {
+            let idx = self.get_index(*row, *col);
+            self.cells.toggle(idx);
+        }
+        self.refresh_live_cell_list();
     }
 
     /// Set cells to be alive in a universe by passing the row and column
@@ -88,6 +102,18 @@ impl Universe {
         }
         if width != None || height != None {
             self.reset_cells();
+        }
+    }
+
+    fn refresh_live_cell_list(&mut self) {
+        self.live_cells.clear();
+        for row in 0..self.height {
+            for col in 0..self.width {
+                let idx = self.get_index(row, col);
+                if self.cells[idx] {
+                    self.live_cells.push((row as f32, col as f32));
+                }
+            }
         }
     }
 

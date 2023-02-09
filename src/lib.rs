@@ -155,16 +155,18 @@ pub fn start() -> Result<(), JsValue> {
                     let col = in_bounds(x, w);
                     if event.ctrl_key() {
                         if event.alt_key() {
+                            let mut cells = Vec::new();
                             for r in 0..w {
-                                universe.toggle_cell(r as usize, col);
+                                cells.push((r as usize, col));
                             }
+                            universe.toggle_cells(&cells);
                         }
                         else {
-                            universe.toggle_cell(row,                 col);
-                            universe.toggle_cell(row,                 in_bounds(x + 1, w));
-                            universe.toggle_cell(in_bounds(y - 1, h), col);
-                            universe.toggle_cell(in_bounds(y - 1, h), in_bounds(x - 1, w));
-                            universe.toggle_cell(in_bounds(y + 1, h), in_bounds(x - 1, w));
+                            universe.toggle_cells(&[(row,                 col),
+                                                       (row,                 in_bounds(x + 1, w)),
+                                                       (in_bounds(y - 1, h), col),
+                                                       (in_bounds(y - 1, h), in_bounds(x - 1, w)),
+                                                       (in_bounds(y + 1, h), in_bounds(x - 1, w))]);
                         }
                     }
                     else {
