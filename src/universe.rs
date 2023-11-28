@@ -45,11 +45,11 @@ impl Universe {
                 let cell = self.old_cells[idx];
                 let live_neighbors = self.live_neighbor_count(row, col);
                 let new_cell = match (cell, live_neighbors) {
-                    (true, x) if x < 2 => false,
-                    (true, 2) | (true, 3) => true,
-                    (true, x) if x > 3 => false,
                     (false, 3) => true,
-                    (otherwise, _) => otherwise
+                    (false, _) => false,
+                    (true, 2) => true,
+                    (true, 3) => true,
+                    (true, _) => false
                 };
                 if new_cell {
                     self.live_cells.push((row as f32, col as f32));
